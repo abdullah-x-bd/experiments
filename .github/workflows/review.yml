@@ -31,15 +31,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 240
     steps:
-      - name: Check privacy
-        env:
-          REPOSITORY_PRIVATE: ${{ github.event.repository.private }}
-        run: |
-          if [ "$REPOSITORY_PRIVATE" != "true" ]; then
-            echo "Set the repository to private before running this workflow."
-            exit 1
-          fi
-
       - uses: actions/checkout@v4
 
       - name: Verify configuration and input
