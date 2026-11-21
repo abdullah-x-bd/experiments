@@ -6,7 +6,7 @@ on:
       budget_usd:
         description: Maximum OpenRouter spend for this run (USD)
         required: true
-        default: '7.00'
+        default: '7.75'
       words_per_batch:
         description: Words per diagnostic batch
         required: true
