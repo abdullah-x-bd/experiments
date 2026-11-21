@@ -1,6 +1,9 @@
 name: Internal model experiment
 
 on:
+  push:
+    paths:
+      - 'input/manuscript.docx'
   workflow_dispatch:
     inputs:
       budget_usd:
@@ -49,9 +52,9 @@ jobs:
       - name: Run section-by-section diagnostic review
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          BUDGET_USD: ${{ inputs.budget_usd }}
-          WORDS_PER_BATCH: ${{ inputs.words_per_batch }}
-          START_BATCH: ${{ inputs.start_batch }}
+          BUDGET_USD: ${{ inputs.budget_usd || '7.75' }}
+          WORDS_PER_BATCH: ${{ inputs.words_per_batch || '750' }}
+          START_BATCH: ${{ inputs.start_batch || '1' }}
         run: |
           python3 review_run.py \
             --file input/manuscript.docx \
