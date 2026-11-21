@@ -149,12 +149,12 @@ def multimodal_content(text, img_paths, media):
             }})
     return blocks
 
-def complete(key, user_content, max_tokens):
+def complete(key, user_content, max_tokens, effort='max'):
     payload = {
         'model': MODEL,
         'messages': [{'role': 'system', 'content': SYSTEM},
                      {'role': 'user', 'content': user_content}],
-        'reasoning': {'effort': 'max', 'exclude': True},
+        'reasoning': {'effort': effort, 'exclude': True},
         'max_completion_tokens': max_tokens,
         'stream': False,
     }
@@ -206,7 +206,7 @@ def main():
     parser.add_argument('--budget', type=float, default=7.75)
     parser.add_argument('--words-per-batch', type=int, default=750)
     parser.add_argument('--start-batch', type=int, default=1)
-    parser.add_argument('--max-output-tokens', type=int, default=11000)
+    parser.add_argument('--max-output-tokens', type=int, default=15000)
     parser.add_argument('--dry-run', action='store_true')
     args = parser.parse_args()
     args.budget = min(args.budget, 7.75)
@@ -231,21 +231,27 @@ def main():
     api_key = os.environ.get('OPENROUTER_API_KEY')
     if not api_key:
         raise RuntimeError('Missing OPENROUTER_API_KEY secret')
-    spent = 0.0
+    previous_spend = float(os.environ.get('PREVIOUS_SPEND_USD', '0.0'))
+    if previous_spend < 0 or previous_spend >= args.budget:
+        raise ValueError('Previous spending is outside the allowed budget')
+    spent = previous_spend
     mapping_file = args.out / 'document_map.md'
     if args.start_batch == 1:
-        if args.budget < 0.65:
-            raise ValueError('Budget too small for initial mapping')
+        if args.budget - spent < 0.55:
+            raise ValueError('Remaining budget too small for initial mapping')
         prompt = ('Read the FULL manuscript to prepare a compact structural map of its thesis, '
                   'argument, comparisons, methods, central objections and JGLR priorities. '
                   'This is NOT the detailed review. Limit visible map to 1500 words.\n\n' +
                   lines(paragraphs))
         images = [img for p in paragraphs for img in p['images']]
-        result, cost, usage = complete(api_key, multimodal_content(prompt, images, media), 6500)
+        result, cost, usage = complete(api_key, multimodal_content(prompt, images, media), 6500, effort='low')
         write_usage(args.out, {'stage': 'map', **usage})
         spent += cost
         if len(result) < 80:
-            raise RuntimeError('Mapping returned too little visible content; no batch started')
+            print('Mapping response used output tokens without visible text; using headings fallback.', flush=True)
+            headings = [p['id'] + ': ' + p['text'][:180] for p in paragraphs
+                        if re.search(r'\[Heading', p['text']) or re.match(r'^\d+(?:\.\d+)?\.\s', p['text'])]
+            result = 'Manuscript structure (automatic map):\n' + '\n'.join(headings)
         mapping_file.write_text(result + '\n', encoding='utf-8')
         print('Document map complete; billed $' + format(spent, '.4f'), flush=True)
     else:
@@ -280,10 +286,20 @@ def main():
         write_usage(args.out, {'stage': 'batch', 'batch': i, **usage})
         spent += cost
         if len(text) < 80:
-            (args.out / ('batch-' + str(i).zfill(2) + '-empty.txt')).write_text(
-                text, encoding='utf-8')
-            print('Batch', i, 'returned insufficient visible output; stopping.', flush=True)
-            break
+            print('Batch', i, 'spent reasoning tokens but returned no review; testing shorter thinking.', flush=True)
+            fallback_tokens = 8000
+            if spent + 0.25 + 0.000040 * fallback_tokens > args.budget:
+                print('No budget remains for safe recovery attempt; stopping.', flush=True)
+                break
+            text, retry_cost, retry_usage = complete(
+                api_key, multimodal_content(message, images, media), fallback_tokens, effort='medium')
+            write_usage(args.out, {'stage': 'batch_fallback', 'batch': i, **retry_usage})
+            spent += retry_cost
+            if len(text) < 80:
+                (args.out / ('batch-' + str(i).zfill(2) + '-empty.txt')).write_text(
+                    'Model returned too little visible content on both attempts.', encoding='utf-8')
+                print('Batch', i, 'could not be completed; stopping.', flush=True)
+                break
         filename = args.out / ('batch-' + str(i).zfill(2) + '.md')
         filename.write_text('# Batch ' + str(i) + '/' + str(len(batches)) +
                             ' (' + ids[0] + ' to ' + ids[-1] + ')\n\n' + text + '\n',
@@ -305,13 +321,25 @@ def main():
     next_batch = next((i for i in range(args.start_batch, len(batches) + 1)
                        if i not in done), None)
     status = {'completed_batches_this_run': done, 'total_batches': len(batches),
-              'spent_usd_this_run': round(spent, 6),
+              'spent_usd_this_run': round(spent - previous_spend, 6),
+              'spent_usd_prior_runs': round(previous_spend, 6),
+              'cumulative_spent_usd': round(spent, 6),
+              'budget_usd_total': args.budget,
               'missing_paragraph_coverage': missing_coverage,
               'next_batch': next_batch}
     (args.out / 'status.json').write_text(json.dumps(status, indent=2), encoding='utf-8')
     full = ['# Diagnostic review', '',
             'Completed ' + str(len(done)) + ' of ' + str(len(batches)) +
-            ' batches in this run. Billed $' + format(spent, '.4f') + '.']
+            ' batches in this run. Cumulative billed ]
+    for i in done:
+        full.append((args.out / ('batch-' + str(i).zfill(2) + '.md')).read_text(
+            encoding='utf-8'))
+    (args.out / 'diagnostic_report.md').write_text('\n\n'.join(full), encoding='utf-8')
+    print('Status:', json.dumps(status), flush=True)
+
+if __name__ == '__main__':
+    main()
+ + format(spent, '.4f') + '.']
     for i in done:
         full.append((args.out / ('batch-' + str(i).zfill(2) + '.md')).read_text(
             encoding='utf-8'))
