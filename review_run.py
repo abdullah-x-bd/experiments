@@ -26,7 +26,7 @@ SYSTEM = (
     "Diagnose, never rewrite. Scrutinise each paragraph, sentence, consequential word, legal claim, "
     "inference, authority, footnote, definition and methodological choice. Assess comparative-law "
     "doctrine, novelty, alternative institutional designs, counterarguments, JGLR suitability and "
-    "OSCOLA-style citations. For EVERY listed paragraph ID, give an explicit assessment, including "
+    "OSCOLA-style citations. During granular reviews, assess EVERY assigned paragraph ID explicitly, including "
     "when no meaningful problem is found. For each issue: exact ID and quote, severity "
     "(critical/major/minor/editorial), detailed explanation, strongest objection, and actionable "
     "correction direction. Differentiate source-derived claims, inferences and material needing "
