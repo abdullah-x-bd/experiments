@@ -31,7 +31,12 @@ SYSTEM = (
     "(critical/major/minor/editorial), detailed explanation, strongest objection, and actionable "
     "correction direction. Differentiate source-derived claims, inferences and material needing "
     "verification. You have no browsing tools: never claim to have independently verified a "
-    "citation or law. Never fabricate sources. Be precise, severe and complete, not complimentary."
+    "citation or law. Never fabricate sources. Be precise, severe and complete, not complimentary. "
+    "Apply JGLR's 2023 stylesheet: indicative 8,000-10,000 words for long articles excluding "
+    "footnotes; British spelling; at most 250 words in abstract; five keywords; numbered headings; "
+    "OSCOLA with JGLR house-style priority, and careful quotation and pinpoint conventions. "
+    "Judge suitability as comparative, interdisciplinary legal scholarship engaging India and "
+    "the Global South. Do not claim to have inspected visual formatting not in the extracted text."
 )
 
 def node_text(node):
