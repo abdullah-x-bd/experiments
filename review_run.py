@@ -149,12 +149,12 @@ def multimodal_content(text, img_paths, media):
             }})
     return blocks
 
-def complete(key, user_content, max_tokens, effort='max'):
+def complete(key, user_content, max_tokens, reasoning_tokens=2500):
     payload = {
         'model': MODEL,
         'messages': [{'role': 'system', 'content': SYSTEM},
                      {'role': 'user', 'content': user_content}],
-        'reasoning': {'effort': effort, 'exclude': True},
+        'reasoning': {'max_tokens': min(reasoning_tokens, max_tokens - 1024), 'exclude': True},
         'max_completion_tokens': max_tokens,
         'stream': False,
     }
@@ -206,7 +206,7 @@ def main():
     parser.add_argument('--budget', type=float, default=7.75)
     parser.add_argument('--words-per-batch', type=int, default=750)
     parser.add_argument('--start-batch', type=int, default=1)
-    parser.add_argument('--max-output-tokens', type=int, default=15000)
+    parser.add_argument('--max-output-tokens', type=int, default=9500)
     parser.add_argument('--dry-run', action='store_true')
     args = parser.parse_args()
     args.budget = min(args.budget, 7.75)
@@ -231,32 +231,21 @@ def main():
     api_key = os.environ.get('OPENROUTER_API_KEY')
     if not api_key:
         raise RuntimeError('Missing OPENROUTER_API_KEY secret')
-    previous_spend = float(os.environ.get('PREVIOUS_SPEND_USD', '0.476832'))
+    previous_spend = float(os.environ.get('PREVIOUS_SPEND_USD', '1.97244'))
     if previous_spend < 0 or previous_spend >= args.budget:
         raise ValueError('Previous spending is outside the allowed budget')
     spent = previous_spend
     mapping_file = args.out / 'document_map.md'
-    if args.start_batch == 1:
-        if args.budget - spent < 0.55:
-            raise ValueError('Remaining budget too small for initial mapping')
-        prompt = ('Read the FULL manuscript to prepare a compact structural map of its thesis, '
-                  'argument, comparisons, methods, central objections and JGLR priorities. '
-                  'This is NOT the detailed review. Limit visible map to 1500 words.\n\n' +
-                  lines(paragraphs))
-        images = [img for p in paragraphs for img in p['images']]
-        result, cost, usage = complete(api_key, multimodal_content(prompt, images, media), 6500, effort='low')
-        write_usage(args.out, {'stage': 'map', **usage})
-        spent += cost
-        if len(result) < 80:
-            print('Mapping response used output tokens without visible text; using headings fallback.', flush=True)
-            headings = [p['id'] + ': ' + p['text'][:180] for p in paragraphs
-                        if re.search(r'\[Heading', p['text']) or re.match(r'^\d+(?:\.\d+)?\.\s', p['text'])]
-            result = 'Manuscript structure (automatic map):\n' + '\n'.join(headings)
-        mapping_file.write_text(result + '\n', encoding='utf-8')
-        print('Document map complete; billed $' + format(spent, '.4f'), flush=True)
+    # Reuse the full-manuscript structural assessment from the earlier run.
+    # No additional costly model call is needed before the paragraph audits.
+    context_path = Path('review_context.md')
+    if context_path.exists():
+        mapping_file.write_text(context_path.read_text(encoding='utf-8'),
+                                encoding='utf-8')
     else:
-        headings = [p['text'][:80] for p in paragraphs if re.search(r'\[Heading', p['text'])]
-        mapping_file.write_text('Structural headings: ' + '; '.join(headings), encoding='utf-8')
+        mapping_file.write_text(
+            'Review the manuscript as a comparative-law article for JGLR.\n',
+            encoding='utf-8')
     map_text = mapping_file.read_text(encoding='utf-8')[:10000]
 
     missing_coverage = []
@@ -282,17 +271,18 @@ def main():
         )
         images = [img for p in batch for img in p['images']]
         text, cost, usage = complete(api_key, multimodal_content(message, images, media),
-                                     args.max_output_tokens)
+                                     args.max_output_tokens, reasoning_tokens=2500)
         write_usage(args.out, {'stage': 'batch', 'batch': i, **usage})
         spent += cost
         if len(text) < 80:
-            print('Batch', i, 'spent reasoning tokens but returned no review; testing shorter thinking.', flush=True)
-            fallback_tokens = 8000
+            print('Batch', i, 'returned no report; retrying with a smaller reasoning allowance.', flush=True)
+            fallback_tokens = 7500
             if spent + 0.25 + 0.000040 * fallback_tokens > args.budget:
                 print('No budget remains for safe recovery attempt; stopping.', flush=True)
                 break
             text, retry_cost, retry_usage = complete(
-                api_key, multimodal_content(message, images, media), fallback_tokens, effort='medium')
+                api_key, multimodal_content(message, images, media),
+                fallback_tokens, reasoning_tokens=1100)
             write_usage(args.out, {'stage': 'batch_fallback', 'batch': i, **retry_usage})
             spent += retry_cost
             if len(text) < 80:
@@ -336,6 +326,8 @@ def main():
             encoding='utf-8'))
     (args.out / 'diagnostic_report.md').write_text('\n\n'.join(full), encoding='utf-8')
     print('Status:', json.dumps(status), flush=True)
+    if not done:
+        raise RuntimeError('No diagnostic batches completed; inspect usage.jsonl and logs')
 
 if __name__ == '__main__':
     main()
