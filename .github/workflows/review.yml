@@ -1,10 +1,6 @@
 name: Full manuscript diagnostic review
 
 on:
-  push:
-    paths:
-      - 'review_full.py'
-      - '.github/workflows/review.yml'
   workflow_dispatch:
     inputs:
       budget_usd:
