@@ -203,12 +203,13 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--file', type=Path, default=Path('input/manuscript.docx'))
     parser.add_argument('--out', type=Path, default=Path('results'))
-    parser.add_argument('--budget', type=float, default=7.0)
+    parser.add_argument('--budget', type=float, default=7.75)
     parser.add_argument('--words-per-batch', type=int, default=750)
     parser.add_argument('--start-batch', type=int, default=1)
     parser.add_argument('--max-output-tokens', type=int, default=11000)
     parser.add_argument('--dry-run', action='store_true')
     args = parser.parse_args()
+    args.budget = min(args.budget, 7.75)
     if args.budget <= 0 or not 350 <= args.words_per_batch <= 2500 or args.start_batch < 1:
         parser.error('Invalid budget, words-per-batch or start-batch values')
 
