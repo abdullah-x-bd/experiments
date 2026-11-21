@@ -11,7 +11,7 @@ from review_run import extract_docx, lines, multimodal_content
 
 MODEL = "anthropic/claude-fable-5.2"
 HARD_TOTAL_USD = 7.75
-PRIOR_USD = 2.706568
+PRIOR_USD = 7.325048
 INPUT_RESERVE_USD = 0.55
 OUTPUT_PRICE_PER_MILLION = 40.0
 
