@@ -231,7 +231,7 @@ def main():
     api_key = os.environ.get('OPENROUTER_API_KEY')
     if not api_key:
         raise RuntimeError('Missing OPENROUTER_API_KEY secret')
-    previous_spend = float(os.environ.get('PREVIOUS_SPEND_USD', '0.0'))
+    previous_spend = float(os.environ.get('PREVIOUS_SPEND_USD', '0.476832'))
     if previous_spend < 0 or previous_spend >= args.budget:
         raise ValueError('Previous spending is outside the allowed budget')
     spent = previous_spend
@@ -330,16 +330,7 @@ def main():
     (args.out / 'status.json').write_text(json.dumps(status, indent=2), encoding='utf-8')
     full = ['# Diagnostic review', '',
             'Completed ' + str(len(done)) + ' of ' + str(len(batches)) +
-            ' batches in this run. Cumulative billed ]
-    for i in done:
-        full.append((args.out / ('batch-' + str(i).zfill(2) + '.md')).read_text(
-            encoding='utf-8'))
-    (args.out / 'diagnostic_report.md').write_text('\n\n'.join(full), encoding='utf-8')
-    print('Status:', json.dumps(status), flush=True)
-
-if __name__ == '__main__':
-    main()
- + format(spent, '.4f') + '.']
+            ' batches in this run. Cumulative spending: USD ' + format(spent, '.4f') + '.']
     for i in done:
         full.append((args.out / ('batch-' + str(i).zfill(2) + '.md')).read_text(
             encoding='utf-8'))
